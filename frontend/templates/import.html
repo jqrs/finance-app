@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}Import - Finance App{% endblock %}
+
+{% block content %}
+<div x-data="importPage()" x-init="init()">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Import Transactions</h1>
+
+    <!-- Step 1: Upload -->
+    <div x-show="step === 1" class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold mb-4">Step 1: Upload CSV File</h2>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Select Account</label>
+            <select x-model="selectedAccountId" required
+                    class="w-full max-w-md border-gray-300 rounded-md shadow-sm">
+                <option value="">Choose an account...</option>
+                <template x-for="account in accounts" :key="account.id">
+                    <option :value="account.id" x-text="account.name"></option>
+                </template>
+            </select>
+            <p class="mt-1 text-sm text-gray-500">
+                Don't have an account? <a href="/accounts" class="text-blue-600">Create one first</a>.
+            </p>
+        </div>
+
+        <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
+             @dragover.prevent="dragover = true"
+             @dragleave.prevent="dragover = false"
+             @drop.prevent="handleDrop($event)"
+             :class="{ 'border-blue-500 bg-blue-50': dragover }">
+            <input type="file" accept=".csv" @change="handleFileSelect($event)"
+                   class="hidden" x-ref="fileInput">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            <p class="mt-2 text-sm text-gray-600">
+                Drag and drop your CSV file here, or
+                <button @click="$refs.fileInput.click()" class="text-blue-600 hover:text-blue-800">browse</button>
+            </p>
+            <p class="mt-1 text-xs text-gray-500">Supports exports from most banks: Chase, Bank of America, Wells Fargo, etc.</p>
+        </div>
+
+        <div x-show="fileName" class="mt-4 flex items-center text-sm text-gray-600">
+            <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span x-text="fileName"></span>
+        </div>
+
+        <div x-show="error" class="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm" x-text="error"></div>
+
+        <button @click="parseCSV()"
+                :disabled="!selectedAccountId || !csvData"
+                class="mt-6 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            Continue
+        </button>
+    </div>
+
+    <!-- Step 2: Map Columns -->
+    <div x-show="step === 2" class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold mb-4">Step 2: Map Columns</h2>
+        <p class="text-sm text-gray-600 mb-4">
+            We detected <span x-text="csvRows.length" class="font-medium"></span> rows.
+            Please map the columns to the correct fields.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Date Column *</label>
+                <select x-model="columnMapping.date" required
+                        class="w-full border-gray-300 rounded-md shadow-sm">
+                    <option value="">Select column...</option>
+                    <template x-for="col in csvColumns" :key="col">
+                        <option :value="col" x-text="col"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Amount Column *</label>
+                <select x-model="columnMapping.amount" required
+                        class="w-full border-gray-300 rounded-md shadow-sm">
+                    <option value="">Select column...</option>
+                    <template x-for="col in csvColumns" :key="col">
+                        <option :value="col" x-text="col"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Description Column *</label>
+                <select x-model="columnMapping.description" required
+                        class="w-full border-gray-300 rounded-md shadow-sm">
+                    <option value="">Select column...</option>
+                    <template x-for="col in csvColumns" :key="col">
+                        <option :value="col" x-text="col"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Date Format</label>
+            <select x-model="dateFormat" class="w-full max-w-xs border-gray-300 rounded-md shadow-sm">
+                <option value="auto">Auto-detect</option>
+                <option value="%m/%d/%Y">MM/DD/YYYY</option>
+                <option value="%d/%m/%Y">DD/MM/YYYY</option>
+                <option value="%Y-%m-%d">YYYY-MM-DD</option>
+                <option value="%m-%d-%Y">MM-DD-YYYY</option>
+            </select>
+        </div>
+
+        <!-- Preview -->
+        <h3 class="text-md font-medium mb-2">Preview (first 5 rows)</h3>
+        <div class="overflow-x-auto border rounded-lg">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left">Date</th>
+                        <th class="px-4 py-2 text-left">Description</th>
+                        <th class="px-4 py-2 text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <template x-for="(row, idx) in previewRows" :key="idx">
+                        <tr>
+                            <td class="px-4 py-2" x-text="row[columnMapping.date] || '-'"></td>
+                            <td class="px-4 py-2" x-text="row[columnMapping.description] || '-'"></td>
+                            <td class="px-4 py-2 text-right" x-text="row[columnMapping.amount] || '-'"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-6 flex space-x-4">
+            <button @click="step = 1" class="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+                Back
+            </button>
+            <button @click="importTransactions()"
+                    :disabled="!columnMapping.date || !columnMapping.amount || !columnMapping.description || importing"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <span x-show="!importing">Import <span x-text="csvRows.length"></span> Transactions</span>
+                <span x-show="importing">Importing...</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div x-show="step === 3" class="bg-white rounded-lg shadow p-6">
+        <div class="text-center py-8">
+            <svg class="mx-auto h-16 w-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <h2 class="mt-4 text-xl font-semibold text-gray-900">Import Complete!</h2>
+            <p class="mt-2 text-gray-600">
+                <span x-text="importResult.imported" class="font-medium text-green-600"></span> transactions imported,
+                <span x-text="importResult.skipped" class="font-medium text-yellow-600"></span> duplicates skipped.
+            </p>
+            <div class="mt-6 flex justify-center space-x-4">
+                <button @click="reset()" class="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+                    Import More
+                </button>
+                <a href="/transactions" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    View Transactions
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function importPage() {
+    return {
+        step: 1,
+        accounts: [],
+        selectedAccountId: '',
+        csvData: null,
+        csvColumns: [],
+        csvRows: [],
+        fileName: '',
+        dragover: false,
+        error: '',
+        columnMapping: {
+            date: '',
+            amount: '',
+            description: ''
+        },
+        dateFormat: 'auto',
+        importing: false,
+        importResult: { imported: 0, skipped: 0 },
+
+        async init() {
+            const res = await fetch('/api/accounts');
+            this.accounts = await res.json();
+        },
+
+        get previewRows() {
+            return this.csvRows.slice(0, 5);
+        },
+
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) this.readFile(file);
+        },
+
+        handleDrop(event) {
+            this.dragover = false;
+            const file = event.dataTransfer.files[0];
+            if (file && file.name.endsWith('.csv')) {
+                this.readFile(file);
+            }
+        },
+
+        readFile(file) {
+            this.fileName = file.name;
+            this.error = '';
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.csvData = e.target.result;
+            };
+            reader.onerror = () => {
+                this.error = 'Failed to read file';
+            };
+            reader.readAsText(file);
+        },
+
+        parseCSV() {
+            if (!this.csvData || !this.selectedAccountId) return;
+
+            try {
+                const lines = this.csvData.split('\n').filter(line => line.trim());
+                if (lines.length < 2) {
+                    this.error = 'CSV file is empty or has no data rows';
+                    return;
+                }
+
+                // Parse header
+                this.csvColumns = this.parseCSVLine(lines[0]);
+
+                // Parse data rows
+                this.csvRows = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const values = this.parseCSVLine(lines[i]);
+                    if (values.length === this.csvColumns.length) {
+                        const row = {};
+                        this.csvColumns.forEach((col, idx) => {
+                            row[col] = values[idx];
+                        });
+                        this.csvRows.push(row);
+                    }
+                }
+
+                // Auto-detect columns
+                this.autoDetectColumns();
+
+                this.step = 2;
+            } catch (e) {
+                this.error = 'Failed to parse CSV: ' + e.message;
+            }
+        },
+
+        parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        },
+
+        autoDetectColumns() {
+            const lower = col => col.toLowerCase();
+
+            for (const col of this.csvColumns) {
+                const l = lower(col);
+                if (l.includes('date') && !this.columnMapping.date) {
+                    this.columnMapping.date = col;
+                }
+                if ((l.includes('amount') || l === 'debit' || l === 'credit') && !this.columnMapping.amount) {
+                    this.columnMapping.amount = col;
+                }
+                if ((l.includes('description') || l.includes('memo') || l.includes('payee')) && !this.columnMapping.description) {
+                    this.columnMapping.description = col;
+                }
+            }
+        },
+
+        async importTransactions() {
+            this.importing = true;
+            this.error = '';
+
+            try {
+                const transactions = this.csvRows.map(row => {
+                    let amount = parseFloat(row[this.columnMapping.amount].replace(/[$,]/g, ''));
+                    if (isNaN(amount)) amount = 0;
+
+                    return {
+                        account_id: parseInt(this.selectedAccountId),
+                        date: this.parseDate(row[this.columnMapping.date]),
+                        amount: amount,
+                        description: row[this.columnMapping.description] || 'Unknown',
+                        original_description: row[this.columnMapping.description]
+                    };
+                }).filter(t => t.date); // Filter out invalid dates
+
+                let imported = 0;
+                let skipped = 0;
+
+                for (const txn of transactions) {
+                    try {
+                        const res = await fetch('/api/transactions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(txn)
+                        });
+                        if (res.ok) {
+                            imported++;
+                        } else {
+                            skipped++;
+                        }
+                    } catch {
+                        skipped++;
+                    }
+                }
+
+                this.importResult = { imported, skipped };
+                this.step = 3;
+            } catch (e) {
+                this.error = 'Import failed: ' + e.message;
+            } finally {
+                this.importing = false;
+            }
+        },
+
+        parseDate(dateStr) {
+            if (!dateStr) return null;
+
+            // Try common formats
+            const formats = [
+                /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,  // MM/DD/YYYY
+                /^(\d{4})-(\d{2})-(\d{2})$/,        // YYYY-MM-DD
+                /^(\d{1,2})-(\d{1,2})-(\d{4})$/,    // MM-DD-YYYY
+            ];
+
+            for (const format of formats) {
+                const match = dateStr.match(format);
+                if (match) {
+                    let year, month, day;
+                    if (format === formats[1]) {
+                        [, year, month, day] = match;
+                    } else {
+                        [, month, day, year] = match;
+                    }
+                    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                }
+            }
+
+            // Try native parsing
+            const date = new Date(dateStr);
+            if (!isNaN(date)) {
+                return date.toISOString().split('T')[0];
+            }
+
+            return null;
+        },
+
+        reset() {
+            this.step = 1;
+            this.csvData = null;
+            this.csvColumns = [];
+            this.csvRows = [];
+            this.fileName = '';
+            this.columnMapping = { date: '', amount: '', description: '' };
+            this.importResult = { imported: 0, skipped: 0 };
+        }
+    };
+}
+</script>
+{% endblock %}

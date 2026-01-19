@@ -1,0 +1,46 @@
+/* Custom styles for Finance App */
+
+/* Ensure form elements look consistent */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+select,
+textarea {
+    border: 1px solid #d1d5db;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Table hover effect */
+tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+/* Card hover effect */
+.hover-lift {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}

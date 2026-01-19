@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Finance App{% endblock %}
+
+{% block content %}
+<div x-data="dashboard()" x-init="init()">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Total Balance</div>
+            <div class="mt-2 text-3xl font-bold text-gray-900" x-text="formatCurrency(summary.totalBalance)">$0.00</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Income (This Month)</div>
+            <div class="mt-2 text-3xl font-bold text-green-600" x-text="formatCurrency(summary.income)">$0.00</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Expenses (This Month)</div>
+            <div class="mt-2 text-3xl font-bold text-red-600" x-text="formatCurrency(summary.expenses)">$0.00</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Net (This Month)</div>
+            <div class="mt-2 text-3xl font-bold"
+                 :class="summary.net >= 0 ? 'text-green-600' : 'text-red-600'"
+                 x-text="formatCurrency(summary.net)">$0.00</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Spending by Category -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Spending by Category</h2>
+            <div class="h-64">
+                <canvas id="spendingChart"></canvas>
+            </div>
+            <div x-show="!hasSpendingData" class="text-center text-gray-500 py-8">
+                No spending data yet. Import some transactions to get started.
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h2>
+            <div class="space-y-3">
+                <template x-for="txn in recentTransactions" :key="txn.id">
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <div>
+                            <div class="text-sm font-medium text-gray-900" x-text="txn.description"></div>
+                            <div class="text-xs text-gray-500" x-text="txn.date"></div>
+                        </div>
+                        <div class="text-sm font-semibold"
+                             :class="txn.amount >= 0 ? 'text-green-600' : 'text-red-600'"
+                             x-text="formatCurrency(txn.amount)"></div>
+                    </div>
+                </template>
+                <div x-show="recentTransactions.length === 0" class="text-center text-gray-500 py-4">
+                    No transactions yet.
+                </div>
+            </div>
+            <a href="/transactions" class="block mt-4 text-center text-sm text-blue-600 hover:text-blue-800">
+                View all transactions
+            </a>
+        </div>
+    </div>
+
+    <!-- Accounts Overview -->
+    <div class="mt-6 bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Accounts</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <template x-for="account in accounts" :key="account.id">
+                <div class="border rounded-lg p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="text-sm font-medium text-gray-900" x-text="account.name"></div>
+                            <div class="text-xs text-gray-500" x-text="account.institution || account.account_type"></div>
+                        </div>
+                        <div class="text-lg font-semibold"
+                             :class="account.current_balance >= 0 ? 'text-gray-900' : 'text-red-600'"
+                             x-text="formatCurrency(account.current_balance)"></div>
+                    </div>
+                </div>
+            </template>
+            <div x-show="accounts.length === 0" class="col-span-3 text-center text-gray-500 py-4">
+                No accounts yet. <a href="/accounts" class="text-blue-600 hover:text-blue-800">Add an account</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function dashboard() {
+    return {
+        summary: {
+            totalBalance: 0,
+            income: 0,
+            expenses: 0,
+            net: 0
+        },
+        accounts: [],
+        recentTransactions: [],
+        spendingByCategory: [],
+        hasSpendingData: false,
+        spendingChart: null,
+
+        async init() {
+            await Promise.all([
+                this.loadAccounts(),
+                this.loadTransactionSummary(),
+                this.loadRecentTransactions(),
+                this.loadSpendingByCategory()
+            ]);
+        },
+
+        async loadAccounts() {
+            try {
+                const res = await fetch('/api/accounts');
+                this.accounts = await res.json();
+                this.summary.totalBalance = this.accounts.reduce((sum, a) => sum + a.current_balance, 0);
+            } catch (e) {
+                console.error('Failed to load accounts:', e);
+            }
+        },
+
+        async loadTransactionSummary() {
+            try {
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+                const res = await fetch(`/api/transactions/summary?start_date=${startOfMonth}&end_date=${endOfMonth}`);
+                const data = await res.json();
+                this.summary.income = data.total_income;
+                this.summary.expenses = data.total_expenses;
+                this.summary.net = data.net;
+            } catch (e) {
+                console.error('Failed to load summary:', e);
+            }
+        },
+
+        async loadRecentTransactions() {
+            try {
+                const res = await fetch('/api/transactions?per_page=5');
+                this.recentTransactions = await res.json();
+            } catch (e) {
+                console.error('Failed to load transactions:', e);
+            }
+        },
+
+        async loadSpendingByCategory() {
+            try {
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+                const res = await fetch(`/api/categories/spending?start_date=${startOfMonth}&end_date=${endOfMonth}`);
+                this.spendingByCategory = await res.json();
+                this.hasSpendingData = this.spendingByCategory.length > 0;
+
+                if (this.hasSpendingData) {
+                    this.renderSpendingChart();
+                }
+            } catch (e) {
+                console.error('Failed to load spending:', e);
+            }
+        },
+
+        renderSpendingChart() {
+            const ctx = document.getElementById('spendingChart');
+            if (!ctx) return;
+
+            if (this.spendingChart) {
+                this.spendingChart.destroy();
+            }
+
+            this.spendingChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: this.spendingByCategory.map(s => s.category_name),
+                    datasets: [{
+                        data: this.spendingByCategory.map(s => s.total),
+                        backgroundColor: this.spendingByCategory.map(s => s.color)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        },
+
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(amount || 0);
+        }
+    };
+}
+</script>
+{% endblock %}

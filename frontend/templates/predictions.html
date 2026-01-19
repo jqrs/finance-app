@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Predictions - Finance App{% endblock %}
+
+{% block content %}
+<div x-data="predictionsPage()" x-init="init()">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Predictions & Insights</h1>
+
+    <!-- Coming Soon Notice -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+        <div class="flex">
+            <svg class="h-6 w-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <h3 class="text-sm font-medium text-blue-800">ML Features Coming Soon</h3>
+                <p class="mt-1 text-sm text-blue-700">
+                    The machine learning prediction features are being developed.
+                    Import at least 3 months of transaction data to enable forecasting.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Spending Forecast -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Spending Forecast</h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Predicted spending by category for the next 3 months based on your historical patterns.
+            </p>
+            <div class="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+                <div class="text-center text-gray-500">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    <p class="mt-2">Not enough data for forecasting</p>
+                    <p class="text-xs">Need at least 3 months of transactions</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cash Flow Prediction -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Cash Flow Prediction</h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Projected account balance for the next 30 days based on income and expense patterns.
+            </p>
+            <div class="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+                <div class="text-center text-gray-500">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+                    </svg>
+                    <p class="mt-2">Not enough data for forecasting</p>
+                    <p class="text-xs">Need at least 30 days of transactions</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recurring Expenses -->
+        <div class="bg-white rounded-lg shadow p-6 lg:col-span-2">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Detected Recurring Expenses</h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Subscriptions and bills automatically detected from your transaction history.
+            </p>
+
+            <div x-show="recurringExpenses.length > 0">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Merchant</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Expected</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <template x-for="expense in recurringExpenses" :key="expense.id">
+                                <tr>
+                                    <td class="px-4 py-3 text-sm text-gray-900" x-text="expense.merchant"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-600" x-text="expense.frequency_type"></td>
+                                    <td class="px-4 py-3 text-sm text-right text-red-600" x-text="formatCurrency(expense.average_amount)"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-600" x-text="expense.next_expected_date"></td>
+                                    <td class="px-4 py-3 text-sm text-right">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                              :class="expense.confidence > 0.8 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'"
+                                              x-text="Math.round(expense.confidence * 100) + '%'"></span>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div x-show="recurringExpenses.length === 0" class="text-center py-8 bg-gray-50 rounded-lg">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                <p class="mt-2 text-gray-500">No recurring expenses detected yet</p>
+                <p class="text-xs text-gray-400">Import more transactions to detect patterns</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Requirements -->
+    <div class="mt-6 bg-gray-50 rounded-lg p-6">
+        <h3 class="text-md font-semibold text-gray-900 mb-3">Data Requirements for ML Features</h3>
+        <ul class="space-y-2 text-sm text-gray-600">
+            <li class="flex items-center">
+                <span class="w-4 h-4 mr-2 rounded-full" :class="hasEnoughData ? 'bg-green-500' : 'bg-gray-300'"></span>
+                <strong>Spending Forecast:</strong>&nbsp;At least 3 months of categorized transactions
+            </li>
+            <li class="flex items-center">
+                <span class="w-4 h-4 mr-2 rounded-full" :class="hasEnoughData ? 'bg-green-500' : 'bg-gray-300'"></span>
+                <strong>Cash Flow:</strong>&nbsp;At least 30 days of transactions with account balances
+            </li>
+            <li class="flex items-center">
+                <span class="w-4 h-4 mr-2 rounded-full" :class="transactionCount >= 50 ? 'bg-green-500' : 'bg-gray-300'"></span>
+                <strong>Recurring Detection:</strong>&nbsp;At least 50 transactions with 3+ months of history
+            </li>
+        </ul>
+        <p class="mt-4 text-sm text-gray-500">
+            Current status: <span x-text="transactionCount" class="font-medium"></span> transactions loaded
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function predictionsPage() {
+    return {
+        recurringExpenses: [],
+        transactionCount: 0,
+        hasEnoughData: false,
+
+        async init() {
+            await this.loadStats();
+        },
+
+        async loadStats() {
+            try {
+                const res = await fetch('/api/transactions/summary');
+                const data = await res.json();
+                this.transactionCount = data.transaction_count;
+                this.hasEnoughData = this.transactionCount >= 90; // ~3 months
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
+        },
+
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(Math.abs(amount) || 0);
+        }
+    };
+}
+</script>
+{% endblock %}

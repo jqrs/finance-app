@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Accounts - Finance App{% endblock %}
+
+{% block content %}
+<div x-data="accountsPage()" x-init="init()">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Accounts</h1>
+        <button @click="showAddModal = true"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+            Add Account
+        </button>
+    </div>
+
+    <!-- Accounts Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <template x-for="account in accounts" :key="account.id">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900" x-text="account.name"></h3>
+                        <p class="text-sm text-gray-500">
+                            <span x-text="formatAccountType(account.account_type)"></span>
+                            <span x-show="account.institution"> - <span x-text="account.institution"></span></span>
+                        </p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button @click="editAccount(account)" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
+                        </button>
+                        <button @click="deleteAccount(account.id)" class="text-gray-400 hover:text-red-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="text-3xl font-bold"
+                     :class="account.current_balance >= 0 ? 'text-gray-900' : 'text-red-600'"
+                     x-text="formatCurrency(account.current_balance)"></div>
+                <div x-show="account.last_four" class="mt-2 text-sm text-gray-500">
+                    ****<span x-text="account.last_four"></span>
+                </div>
+            </div>
+        </template>
+
+        <!-- Empty State -->
+        <div x-show="accounts.length === 0" class="col-span-full bg-white rounded-lg shadow p-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">No accounts</h3>
+            <p class="mt-1 text-sm text-gray-500">Get started by creating a new account.</p>
+            <button @click="showAddModal = true"
+                    class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                Add Account
+            </button>
+        </div>
+    </div>
+
+    <!-- Add/Edit Account Modal -->
+    <div x-show="showAddModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" @click.away="closeModal()">
+            <h2 class="text-lg font-semibold mb-4" x-text="editingAccount ? 'Edit Account' : 'Add Account'"></h2>
+            <form @submit.prevent="saveAccount()">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Account Name</label>
+                        <input type="text" x-model="formData.name" required
+                               placeholder="e.g., Chase Checking"
+                               class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Account Type</label>
+                        <select x-model="formData.account_type" required
+                                class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
+                            <option value="checking">Checking</option>
+                            <option value="savings">Savings</option>
+                            <option value="credit_card">Credit Card</option>
+                            <option value="investment">Investment</option>
+                            <option value="cash">Cash</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Institution</label>
+                        <input type="text" x-model="formData.institution"
+                               placeholder="e.g., Chase Bank"
+                               class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Last 4 Digits</label>
+                        <input type="text" x-model="formData.last_four" maxlength="4"
+                               placeholder="1234"
+                               class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Current Balance</label>
+                        <input type="number" step="0.01" x-model="formData.current_balance"
+                               class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" @click="closeModal()"
+                            class="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        <span x-text="editingAccount ? 'Save' : 'Add'"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function accountsPage() {
+    return {
+        accounts: [],
+        showAddModal: false,
+        editingAccount: null,
+        formData: {
+            name: '',
+            account_type: 'checking',
+            institution: '',
+            last_four: '',
+            current_balance: 0
+        },
+
+        async init() {
+            await this.loadAccounts();
+        },
+
+        async loadAccounts() {
+            const res = await fetch('/api/accounts');
+            this.accounts = await res.json();
+        },
+
+        editAccount(account) {
+            this.editingAccount = account;
+            this.formData = { ...account };
+            this.showAddModal = true;
+        },
+
+        closeModal() {
+            this.showAddModal = false;
+            this.editingAccount = null;
+            this.formData = {
+                name: '',
+                account_type: 'checking',
+                institution: '',
+                last_four: '',
+                current_balance: 0
+            };
+        },
+
+        async saveAccount() {
+            const url = this.editingAccount
+                ? `/api/accounts/${this.editingAccount.id}`
+                : '/api/accounts';
+            const method = this.editingAccount ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...this.formData,
+                    current_balance: parseFloat(this.formData.current_balance) || 0
+                })
+            });
+
+            if (res.ok) {
+                this.closeModal();
+                await this.loadAccounts();
+            }
+        },
+
+        async deleteAccount(id) {
+            if (!confirm('Delete this account? All associated transactions will also be deleted.')) return;
+
+            await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+            await this.loadAccounts();
+        },
+
+        formatAccountType(type) {
+            const types = {
+                checking: 'Checking',
+                savings: 'Savings',
+                credit_card: 'Credit Card',
+                investment: 'Investment',
+                cash: 'Cash'
+            };
+            return types[type] || type;
+        },
+
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(amount || 0);
+        }
+    };
+}
+</script>
+{% endblock %}
