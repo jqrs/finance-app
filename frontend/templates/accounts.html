@@ -21,7 +21,6 @@
                         <h3 class="text-lg font-semibold text-gray-900" x-text="account.name"></h3>
                         <p class="text-sm text-gray-500">
                             <span x-text="formatAccountType(account.account_type)"></span>
-                            <span x-show="account.institution"> - <span x-text="account.institution"></span></span>
                         </p>
                     </div>
                     <div class="flex space-x-2">
@@ -42,9 +41,6 @@
                 <div class="text-3xl font-bold"
                      :class="account.current_balance >= 0 ? 'text-gray-900' : 'text-red-600'"
                      x-text="formatCurrency(account.current_balance)"></div>
-                <div x-show="account.last_four" class="mt-2 text-sm text-gray-500">
-                    ****<span x-text="account.last_four"></span>
-                </div>
             </div>
         </template>
 
@@ -85,19 +81,8 @@
                             <option value="credit_card">Credit Card</option>
                             <option value="investment">Investment</option>
                             <option value="cash">Cash</option>
+                            <option value="mortgage">Mortgage</option>
                         </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Institution</label>
-                        <input type="text" x-model="formData.institution"
-                               placeholder="e.g., Chase Bank"
-                               class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Last 4 Digits</label>
-                        <input type="text" x-model="formData.last_four" maxlength="4"
-                               placeholder="1234"
-                               class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Current Balance</label>
@@ -131,8 +116,6 @@ function accountsPage() {
         formData: {
             name: '',
             account_type: 'checking',
-            institution: '',
-            last_four: '',
             current_balance: 0
         },
 
@@ -147,7 +130,11 @@ function accountsPage() {
 
         editAccount(account) {
             this.editingAccount = account;
-            this.formData = { ...account };
+            this.formData = {
+                name: account.name,
+                account_type: account.account_type,
+                current_balance: account.current_balance || 0
+            };
             this.showAddModal = true;
         },
 
@@ -157,8 +144,6 @@ function accountsPage() {
             this.formData = {
                 name: '',
                 account_type: 'checking',
-                institution: '',
-                last_four: '',
                 current_balance: 0
             };
         },
@@ -197,7 +182,8 @@ function accountsPage() {
                 savings: 'Savings',
                 credit_card: 'Credit Card',
                 investment: 'Investment',
-                cash: 'Cash'
+                cash: 'Cash',
+                mortgage: 'Mortgage'
             };
             return types[type] || type;
         },

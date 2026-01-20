@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR(100) NOT NULL,
-    account_type VARCHAR(20) NOT NULL CHECK (account_type IN ('checking', 'savings', 'credit_card', 'investment', 'cash')),
+    account_type VARCHAR(20) NOT NULL CHECK (account_type IN ('checking', 'savings', 'credit_card', 'investment', 'cash', 'mortgage')),
     institution VARCHAR(100),
     last_four VARCHAR(4),
     current_balance REAL DEFAULT 0.0,

@@ -8,51 +8,44 @@
 
     <!-- Step 1: Upload -->
     <div x-show="step === 1" class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold mb-4">Step 1: Upload CSV File</h2>
-
-        <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Select Account</label>
-            <select x-model="selectedAccountId" required
-                    class="w-full max-w-md border-gray-300 rounded-md shadow-sm">
-                <option value="">Choose an account...</option>
-                <template x-for="account in accounts" :key="account.id">
-                    <option :value="account.id" x-text="account.name"></option>
-                </template>
-            </select>
-            <p class="mt-1 text-sm text-gray-500">
-                Don't have an account? <a href="/accounts" class="text-blue-600">Create one first</a>.
-            </p>
-        </div>
+        <h2 class="text-lg font-semibold mb-4">Step 1: Upload CSV Files</h2>
 
         <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
              @dragover.prevent="dragover = true"
              @dragleave.prevent="dragover = false"
              @drop.prevent="handleDrop($event)"
              :class="{ 'border-blue-500 bg-blue-50': dragover }">
-            <input type="file" accept=".csv" @change="handleFileSelect($event)"
+            <input type="file" accept=".csv" multiple @change="handleFileSelect($event)"
                    class="hidden" x-ref="fileInput">
             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
             </svg>
             <p class="mt-2 text-sm text-gray-600">
-                Drag and drop your CSV file here, or
+                Drag and drop your CSV files here, or
                 <button @click="$refs.fileInput.click()" class="text-blue-600 hover:text-blue-800">browse</button>
             </p>
             <p class="mt-1 text-xs text-gray-500">Supports exports from most banks: Chase, Bank of America, Wells Fargo, etc.</p>
         </div>
 
-        <div x-show="fileName" class="mt-4 flex items-center text-sm text-gray-600">
-            <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-            <span x-text="fileName"></span>
+        <div x-show="files.length" class="mt-4 text-sm text-gray-600">
+            <div class="flex items-center font-medium">
+                <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <span x-text="`${files.length} file${files.length === 1 ? '' : 's'} selected`"></span>
+            </div>
+            <div class="mt-2 space-y-1">
+                <template x-for="file in files" :key="file.name">
+                    <div class="text-gray-500" x-text="file.name"></div>
+                </template>
+            </div>
         </div>
 
         <div x-show="error" class="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm" x-text="error"></div>
 
-        <button @click="parseCSV()"
-                :disabled="!selectedAccountId || !csvData"
+        <button @click="startImport()"
+                :disabled="files.length === 0"
                 class="mt-6 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
             Continue
         </button>
@@ -61,10 +54,50 @@
     <!-- Step 2: Map Columns -->
     <div x-show="step === 2" class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold mb-4">Step 2: Map Columns</h2>
+        <p class="text-sm text-gray-600 mb-2">
+            File <span x-text="currentFileIndex + 1"></span> of <span x-text="files.length"></span>:
+            <span class="font-medium" x-text="fileName"></span>
+        </p>
         <p class="text-sm text-gray-600 mb-4">
             We detected <span x-text="csvRows.length" class="font-medium"></span> rows.
             Please map the columns to the correct fields.
         </p>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Account</label>
+            <div class="inline-flex rounded-md border border-gray-200 overflow-hidden">
+                <button type="button" @click="setAccountMode('select')" :disabled="accounts.length === 0"
+                        :class="accountMode === 'select' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:text-gray-900'"
+                        class="px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                    Select existing
+                </button>
+                <button type="button" @click="setAccountMode('create')"
+                        :class="accountMode === 'create' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:text-gray-900'"
+                        class="px-4 py-2 text-sm font-medium">
+                    Create new
+                </button>
+            </div>
+        </div>
+
+        <div x-show="accountMode === 'select'" class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Select Account</label>
+            <select x-model="selectedAccountId" required
+                    class="w-full max-w-md border-gray-300 rounded-md shadow-sm">
+                <option value="">Choose an account...</option>
+                <template x-for="account in accounts" :key="account.id">
+                    <option :value="account.id" x-text="account.name"></option>
+                </template>
+            </select>
+        </div>
+
+        <div x-show="accountMode === 'create'" class="mb-4 text-sm text-gray-600">
+            Create a new account to import this file.
+            <button type="button" @click="openAccountModal()" class="ml-2 text-blue-600 hover:text-blue-800">
+                Create account
+            </button>
+        </div>
+
+        <div x-show="error" class="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm" x-text="error"></div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
@@ -138,7 +171,7 @@
                 Back
             </button>
             <button @click="importTransactions()"
-                    :disabled="!columnMapping.date || !columnMapping.amount || !columnMapping.description || importing"
+                    :disabled="!selectedAccountId || !columnMapping.date || !columnMapping.amount || !columnMapping.description || importing"
                     class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 <span x-show="!importing">Import <span x-text="csvRows.length"></span> Transactions</span>
                 <span x-show="importing">Importing...</span>
@@ -154,18 +187,99 @@
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <h2 class="mt-4 text-xl font-semibold text-gray-900">Import Complete!</h2>
+            <p class="mt-1 text-sm text-gray-600" x-text="fileName"></p>
             <p class="mt-2 text-gray-600">
                 <span x-text="importResult.imported" class="font-medium text-green-600"></span> transactions imported,
                 <span x-text="importResult.skipped" class="font-medium text-yellow-600"></span> duplicates skipped.
             </p>
             <div class="mt-6 flex justify-center space-x-4">
-                <button @click="reset()" class="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+                <button x-show="hasMoreFiles" @click="nextFile()"
+                        class="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+                    Import Next File
+                </button>
+                <button x-show="!hasMoreFiles" @click="reset()"
+                        class="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
                     Import More
                 </button>
                 <a href="/transactions" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                     View Transactions
                 </a>
             </div>
+        </div>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div x-show="showAddModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" @click.away="closeAccountModal()">
+            <h2 class="text-lg font-semibold mb-4">Add Account</h2>
+            <div class="mb-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+                <div class="font-medium text-gray-700">File</div>
+                <div class="mt-1" x-text="fileName || 'Unknown file'"></div>
+                <div class="mt-3 font-medium text-gray-700">Preview</div>
+                <div x-show="csvColumns.length && previewRowsShort.length" class="mt-2 overflow-x-auto">
+                    <table class="min-w-full text-xs">
+                        <thead>
+                            <tr>
+                                <template x-for="col in csvColumns" :key="col">
+                                    <th class="px-2 py-1 text-left font-medium text-gray-600" x-text="col"></th>
+                                </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(row, idx) in previewRowsShort" :key="idx">
+                                <tr class="border-t border-gray-200">
+                                    <template x-for="col in csvColumns" :key="col">
+                                        <td class="px-2 py-1 text-gray-700" x-text="row[col] || '-'"></td>
+                                    </template>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <div x-show="!csvColumns.length || !previewRowsShort.length" class="mt-2 text-gray-500">
+                    No preview available yet.
+                </div>
+            </div>
+            <form @submit.prevent="saveAccount()">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Account Name</label>
+                        <input type="text" x-model="accountFormData.name" required
+                               placeholder="e.g., Chase Checking"
+                               class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Account Type</label>
+                        <select x-model="accountFormData.account_type" required
+                                class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
+                            <option value="checking">Checking</option>
+                            <option value="savings">Savings</option>
+                            <option value="credit_card">Credit Card</option>
+                            <option value="investment">Investment</option>
+                            <option value="cash">Cash</option>
+                            <option value="mortgage">Mortgage</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Current Balance</label>
+                        <input type="number" step="0.01" x-model="accountFormData.current_balance"
+                               class="mt-1 w-full border-gray-300 rounded-md shadow-sm">
+                    </div>
+                </div>
+                <div x-show="accountError" class="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm"
+                     x-text="accountError"></div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" @click="closeAccountModal()"
+                            class="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        Add
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -177,6 +291,16 @@ function importPage() {
     return {
         step: 1,
         accounts: [],
+        files: [],
+        currentFileIndex: 0,
+        accountMode: 'select',
+        showAddModal: false,
+        accountFormData: {
+            name: '',
+            account_type: 'checking',
+            current_balance: 0
+        },
+        accountError: '',
         selectedAccountId: '',
         csvData: null,
         csvColumns: [],
@@ -194,43 +318,185 @@ function importPage() {
         importResult: { imported: 0, skipped: 0 },
 
         async init() {
+            await this.loadAccounts();
+        },
+
+        async loadAccounts() {
             const res = await fetch('/api/accounts');
-            this.accounts = await res.json();
+            if (res.ok) {
+                this.accounts = await res.json();
+            } else {
+                this.accounts = [];
+            }
+            this.accountMode = this.accounts.length ? 'select' : 'create';
+        },
+
+        get hasMoreFiles() {
+            return this.currentFileIndex < this.files.length - 1;
         },
 
         get previewRows() {
             return this.csvRows.slice(0, 5);
         },
 
+        get previewRowsShort() {
+            return this.csvRows.slice(0, 3);
+        },
+
+        setAccountMode(mode) {
+            if (mode === 'select' && this.accounts.length === 0) return;
+            this.accountMode = mode;
+            if (mode === 'create') {
+                this.openAccountModal();
+            }
+        },
+
+        openAccountModal() {
+            this.accountError = '';
+            this.showAddModal = true;
+        },
+
+        closeAccountModal() {
+            this.showAddModal = false;
+            this.accountError = '';
+            this.accountFormData = {
+                name: '',
+                account_type: 'checking',
+                current_balance: 0
+            };
+        },
+
+        async saveAccount() {
+            this.accountError = '';
+            const payload = {
+                name: this.accountFormData.name.trim(),
+                account_type: this.accountFormData.account_type,
+                current_balance: parseFloat(this.accountFormData.current_balance) || 0
+            };
+
+            if (!payload.name) {
+                this.accountError = 'Account name is required.';
+                return;
+            }
+
+            const res = await fetch('/api/accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                let message = 'Failed to create account';
+                const resClone = res.clone();
+                try {
+                    const data = await res.json();
+                    if (data?.detail) message = this.formatErrorDetail(data.detail);
+                } catch {
+                    try {
+                        const text = await resClone.text();
+                        if (text) message = text;
+                    } catch {}
+                }
+                this.accountError = message;
+                return;
+            }
+
+            const account = await res.json();
+            this.accounts.push(account);
+            this.selectedAccountId = String(account.id);
+            this.accountMode = 'select';
+            this.closeAccountModal();
+        },
+
+        formatErrorDetail(detail) {
+            if (Array.isArray(detail)) {
+                return detail.map(item => item?.msg || JSON.stringify(item)).join(' ');
+            }
+            if (typeof detail === 'object' && detail !== null) {
+                return JSON.stringify(detail);
+            }
+            return String(detail);
+        },
+
         handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file) this.readFile(file);
+            const files = Array.from(event.target.files || []);
+            if (files.length) this.readFiles(files);
         },
 
         handleDrop(event) {
             this.dragover = false;
-            const file = event.dataTransfer.files[0];
-            if (file && file.name.endsWith('.csv')) {
-                this.readFile(file);
+            const files = Array.from(event.dataTransfer.files || []);
+            if (files.length) this.readFiles(files);
+        },
+
+        async readFiles(files) {
+            this.error = '';
+            this.files = [];
+            const csvFiles = files.filter(file => file.name.endsWith('.csv'));
+            if (!csvFiles.length) {
+                this.error = 'Please select at least one CSV file';
+                return;
+            }
+
+            try {
+                this.files = await Promise.all(csvFiles.map(file => this.readFile(file)));
+            } catch (e) {
+                this.error = 'Failed to read file: ' + e.message;
             }
         },
 
         readFile(file) {
-            this.fileName = file.name;
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    resolve({ name: file.name, data: e.target.result });
+                };
+                reader.onerror = () => {
+                    reject(new Error(`Failed to read ${file.name}`));
+                };
+                reader.readAsText(file);
+            });
+        },
+
+        startImport() {
+            if (!this.files.length) return;
+            this.currentFileIndex = 0;
+            this.loadCurrentFile();
+        },
+
+        nextFile() {
+            if (!this.hasMoreFiles) return;
+            this.currentFileIndex += 1;
+            this.loadCurrentFile();
+        },
+
+        loadCurrentFile() {
+            const current = this.files[this.currentFileIndex];
+            if (!current) return;
+
+            this.csvData = current.data;
+            this.fileName = current.name;
+            this.selectedAccountId = '';
+            this.csvColumns = [];
+            this.csvRows = [];
+            this.columnMapping = { date: '', amount: '', description: '' };
             this.error = '';
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                this.csvData = e.target.result;
-            };
-            reader.onerror = () => {
-                this.error = 'Failed to read file';
-            };
-            reader.readAsText(file);
+            if (this.accounts.length) {
+                this.accountMode = 'select';
+            } else {
+                this.accountMode = 'create';
+                this.openAccountModal();
+            }
+
+            this.parseCSV();
         },
 
         parseCSV() {
-            if (!this.csvData || !this.selectedAccountId) return;
+            if (!this.csvData) return;
+
+            this.error = '';
+            this.step = 2;
 
             try {
                 const lines = this.csvData.split('\n').filter(line => line.trim());
@@ -258,7 +524,6 @@ function importPage() {
                 // Auto-detect columns
                 this.autoDetectColumns();
 
-                this.step = 2;
             } catch (e) {
                 this.error = 'Failed to parse CSV: ' + e.message;
             }
@@ -302,6 +567,11 @@ function importPage() {
         },
 
         async importTransactions() {
+            if (!this.selectedAccountId) {
+                this.error = 'Please select an account before importing.';
+                return;
+            }
+
             this.importing = true;
             this.error = '';
 
@@ -382,12 +652,16 @@ function importPage() {
 
         reset() {
             this.step = 1;
+            this.files = [];
+            this.currentFileIndex = 0;
+            this.selectedAccountId = '';
             this.csvData = null;
             this.csvColumns = [];
             this.csvRows = [];
             this.fileName = '';
             this.columnMapping = { date: '', amount: '', description: '' };
             this.importResult = { imported: 0, skipped: 0 };
+            this.error = '';
         }
     };
 }

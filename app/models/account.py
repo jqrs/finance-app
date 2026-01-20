@@ -13,6 +13,7 @@ class AccountType(str, enum.Enum):
     CREDIT_CARD = "credit_card"
     INVESTMENT = "investment"
     CASH = "cash"
+    MORTGAGE = "mortgage"
 
 
 class Account(Base):
@@ -20,7 +21,14 @@ class Account(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    account_type = Column(Enum(AccountType), nullable=False)
+    account_type = Column(
+        Enum(
+            AccountType,
+            values_callable=lambda obj: [e.value for e in obj],
+            native_enum=False,
+        ),
+        nullable=False,
+    )
     institution = Column(String(100))
     last_four = Column(String(4))
     current_balance = Column(Float, default=0.0)
